@@ -1,0 +1,77 @@
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: hive_mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${MYSQL_DATABASE}
+      MYSQL_USER: ${MYSQL_USER}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+    ports:
+      - "${MYSQL_PORT}:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h localhost -u${MYSQL_USER} -p${MYSQL_PASSWORD} --silent"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+
+  hive-metastore:
+    build:
+      context: ./docker/hive
+    container_name: hive_metastore
+    restart: unless-stopped
+    depends_on:
+      mysql:
+        condition: service_healthy
+    environment:
+      MYSQL_HOST: mysql
+      MYSQL_PORT: 3306
+      MYSQL_DB: ${MYSQL_DATABASE}
+      MYSQL_USER: ${MYSQL_USER}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+      HIVE_METASTORE_URIS: thrift://hive-metastore:9083
+      HIVE_WAREHOUSE_DIR: /opt/hive/data/warehouse
+    command: ["metastore"]
+    ports:
+      - "${HIVE_METASTORE_PORT}:9083"
+    volumes:
+      - hive_warehouse:/opt/hive/data/warehouse
+    healthcheck:
+      test: ["CMD-SHELL", "nc -z localhost 9083"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+
+  hive-server2:
+    build:
+      context: ./docker/hive
+    container_name: hive_server2
+    restart: unless-stopped
+    depends_on:
+      hive-metastore:
+        condition: service_healthy
+    environment:
+      MYSQL_HOST: mysql
+      MYSQL_PORT: 3306
+      MYSQL_DB: ${MYSQL_DATABASE}
+      MYSQL_USER: ${MYSQL_USER}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+      HIVE_METASTORE_URIS: thrift://hive-metastore:9083
+      HIVE_METASTORE_HOST: hive-metastore
+      HIVE_METASTORE_PORT: 9083
+      HIVE_WAREHOUSE_DIR: /opt/hive/data/warehouse
+      HIVE_SERVER2_PORT: 10000
+      HIVE_SERVER2_WEBUI_PORT: 10002
+    command: ["hiveserver2"]
+    ports:
+      - "${HIVE_SERVER2_PORT}:10000"
+      - "${HIVE_SERVER2_WEBUI_PORT}:10002"
+    volumes:
+      - hive_warehouse:/opt/hive/data/warehouse
+
+volumes:
+  mysql_data:
+  hive_warehouse:
