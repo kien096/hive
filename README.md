@@ -60,3 +60,9 @@ Tat va xoa toan bo data volume:
 ```bash
 docker compose down -v
 ```
+
+Vao hive CLI
+
+```bash
+docker compose exec -it hive-server2 /opt/hive/bin/hive
+```
